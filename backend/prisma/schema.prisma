@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EstadoFamilia {
+  ACTIVA
+  SUSPENDIDA
+  INACTIVA
+}
+
+enum EstadoDistribucion {
+  PROGRAMADA
+  EN_CURSO
+  COMPLETADA
+  CANCELADA
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+  VENCIDO
+  ANULADO
+}
+
+enum EstadoIncidencia {
+  ABIERTA
+  EN_PROCESO
+  RESUELTA
+  CERRADA
+}
+
+enum EstadoNotificacion {
+  PENDIENTE
+  ENVIADA
+  FALLIDA
+  LEIDA
+}
+
+enum RolUsuario {
+  ADMIN
+  OPERADOR
+  TESORERO
+  TECNICO
+}
+
+model Sector {
+  id_sector    Int      @id @default(autoincrement())
+  nombre       String   @unique @db.VarChar(100)
+  descripcion  String?
+  prioridad    Int      @default(1)
+
+  familias     FamiliaSector[]
+  distribuciones Distribucion[]
+}
+
+model Familia {
+  id_familia         Int           @id @default(autoincrement())
+  nombre_responsable String        @db.VarChar(150)
+  direccion          String        @db.VarChar(255)
+  telefono           String?       @db.VarChar(20)
+  estado             EstadoFamilia @default(ACTIVA)
+  created_at         DateTime      @default(now())
+
+  sectores    FamiliaSector[]
+  pagos       Pago[]
+  incidencias Incidencia[]
+}
+
+model FamiliaSector {
+  id               Int      @id @default(autoincrement())
+  id_familia       Int
+  id_sector        Int
+  fecha_asignacion DateTime @default(now()) @db.Date
+
+  familia Familia @relation(fields: [id_familia], references: [id_familia], onDelete: Cascade)
+  sector  Sector  @relation(fields: [id_sector], references: [id_sector])
+
+  @@unique([id_familia, id_sector])
+}
+
+model Tanque {
+  id_tanque    Int     @id @default(autoincrement())
+  capacidad    Decimal @db.Decimal(12, 2)
+  nivel_actual Decimal @default(0) @db.Decimal(12, 2)
+
+  historial      HistorialTanque[]
+  distribuciones Distribucion[]
+  notificaciones Notificacion[]
+}
+
+model HistorialTanque {
+  id_historial Int      @id @default(autoincrement())
+  id_tanque    Int
+  nivel        Decimal  @db.Decimal(12, 2)
+  fecha        DateTime @default(now())
+
+  tanque Tanque @relation(fields: [id_tanque], references: [id_tanque])
+}
+
+model Distribucion {
+  id_distribucion Int                @id @default(autoincrement())
+  id_sector       Int
+  id_tanque       Int
+  fecha           DateTime           @db.Date
+  hora_inicio     String             @db.VarChar(5)
+  hora_fin        String             @db.VarChar(5)
+  estado          EstadoDistribucion @default(PROGRAMADA)
+
+  sector Sector @relation(fields: [id_sector], references: [id_sector])
+  tanque Tanque @relation(fields: [id_tanque], references: [id_tanque])
+}
+
+model Usuario {
+  id_usuario Int        @id @default(autoincrement())
+  nombre     String     @db.VarChar(150)
+  username   String     @unique @db.VarChar(80)
+  password   String     @db.VarChar(255)
+  rol        RolUsuario @default(OPERADOR)
+  activo     Boolean    @default(true)
+
+  pagos          Pago[]
+  mantenimientos Mantenimiento[]
+  notificaciones Notificacion[]
+}
+
+model Pago {
+  id_pago             Int        @id @default(autoincrement())
+  id_familia          Int
+  id_usuario          Int
+  fecha               DateTime   @db.Date
+  monto               Decimal    @db.Decimal(10, 2)
+  mes_correspondiente String     @db.VarChar(7)
+  estado              EstadoPago @default(PAGADO)
+
+  familia Familia @relation(fields: [id_familia], references: [id_familia])
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@unique([id_familia, mes_correspondiente])
+}
+
+model Incidencia {
+  id_incidencia  Int              @id @default(autoincrement())
+  id_familia     Int?
+  tipo           String           @db.VarChar(50)
+  descripcion    String
+  fecha_reporte  DateTime         @default(now())
+  estado         EstadoIncidencia @default(ABIERTA)
+
+  familia        Familia?        @relation(fields: [id_familia], references: [id_familia])
+  mantenimientos Mantenimiento[]
+}
+
+model Mantenimiento {
+  id_mantenimiento Int      @id @default(autoincrement())
+  id_incidencia    Int?
+  id_usuario       Int
+  tipo             String   @db.VarChar(50)
+  descripcion      String
+  costo            Decimal  @db.Decimal(10, 2)
+  fecha            DateTime @db.Date
+
+  incidencia Incidencia? @relation(fields: [id_incidencia], references: [id_incidencia])
+  usuario    Usuario     @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+model Notificacion {
+  id_notificacion Int                @id @default(autoincrement())
+  id_usuario      Int?
+  id_tanque       Int?
+  mensaje         String
+  fecha           DateTime           @default(now())
+  estado          EstadoNotificacion @default(PENDIENTE)
+
+  usuario Usuario? @relation(fields: [id_usuario], references: [id_usuario])
+  tanque  Tanque?  @relation(fields: [id_tanque], references: [id_tanque])
+}
